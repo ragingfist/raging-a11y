@@ -48,6 +48,7 @@ const activeStandards = document.getElementById("active-standards");
 const standardsTagsContainer = activeStandards.querySelector(".standards-tags");
 const loadingIndicator = document.getElementById("loading");
 const issuesList = document.getElementById("issues-list");
+
 const elementsList = document.getElementById("elements-list");
 const incompleteIssuesList = document.getElementById("incomplete-issues-list");
 const incompleteElementsList = document.getElementById(
@@ -58,6 +59,142 @@ const passesElementsList = document.getElementById("passes-elements-list");
 const severityItems = document.querySelectorAll(".severity-item");
 const tabButtons = document.querySelectorAll(".tab-button");
 const tabContents = document.querySelectorAll(".tab-content");
+const toggleAltText = document.getElementById("toggle-alt-text");
+const toggleHeadingOrder = document.getElementById("toggle-heading-order");
+const toggleTabOrder = document.getElementById("toggle-tab-order");
+const toggleFocusIndicators = document.getElementById("toggle-focus-indicators");
+const toggleGenericLinks = document.getElementById("toggle-generic-links");
+const toggleAriaLabelIssues = document.getElementById("toggle-aria-label-issues");
+
+function hexToRgb(hex) {
+  hex = hex.replace(/^#/, '');
+  if (hex.length === 3) hex = hex.split('').map(x => x + x).join('');
+  const num = parseInt(hex, 16);
+  return [num >> 16 & 255, num >> 8 & 255, num & 255];
+}
+function luminance([r, g, b]) {
+  const a = [r, g, b].map(v => {
+    v /= 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+}
+function contrastRatio(hex1, hex2) {
+  const lum1 = luminance(hexToRgb(hex1));
+  const lum2 = luminance(hexToRgb(hex2));
+  const brightest = Math.max(lum1, lum2);
+  const darkest = Math.min(lum1, lum2);
+  return ((brightest + 0.05) / (darkest + 0.05));
+}
+function wcagResult(ratio, size = 'normal') {
+  let aa = false, aaa = false;
+  if (size === 'normal') {
+    aa = ratio >= 4.5;
+    aaa = ratio >= 7;
+  } else {
+    aa = ratio >= 3;
+    aaa = ratio >= 4.5;
+  }
+  return { aa, aaa };
+}
+function syncColorInputs(colorInput, textInput) {
+  colorInput.addEventListener('input', () => {
+    textInput.value = colorInput.value;
+  });
+  textInput.addEventListener('input', () => {
+    let val = textInput.value;
+    if (/^#[0-9a-fA-F]{6}$/.test(val)) colorInput.value = val;
+  });
+}
+const fgColor = document.getElementById('contrast-fg');
+const fgText = document.getElementById('contrast-fg-text');
+const bgColor = document.getElementById('contrast-bg');
+const bgText = document.getElementById('contrast-bg-text');
+const checkBtn = document.getElementById('contrast-check-btn');
+const resultDiv = document.getElementById('contrast-result');
+
+function getCheckedStandards() {
+  return Array.from(document.querySelectorAll('.standard-item input[type="checkbox"]:checked'))
+    .map(cb => cb.value);
+}
+const standardLabels = {
+  wcag2a: 'WCAG 2.0 A',
+  wcag2aa: 'WCAG 2.0 AA',
+  wcag21a: 'WCAG 2.1 A',
+  wcag21aa: 'WCAG 2.1 AA',
+  wcag22a: 'WCAG 2.2 A',
+  wcag22aa: 'WCAG 2.2 AA'
+};
+
+if (fgColor && fgText && bgColor && bgText && checkBtn && resultDiv) {
+  function updateContrastPreview() {
+    const fg = fgText.value;
+    const bg = bgText.value;
+    if (/^#[0-9a-fA-F]{6}$/.test(fg) && /^#[0-9a-fA-F]{6}$/.test(bg)) {
+      const preview = document.getElementById('contrast-checker');
+      if (preview) {
+        preview.style.setProperty('--contrast-bg', bg);
+        preview.style.setProperty('--contrast-fg', fg);
+      }
+    }
+  }
+  [fgColor, fgText, bgColor, bgText].forEach(input => {
+    input.addEventListener('input', updateContrastPreview);
+    input.addEventListener('change', updateContrastPreview);
+  });
+  updateContrastPreview();
+  syncColorInputs(fgColor, fgText);
+  syncColorInputs(bgColor, bgText);
+  checkBtn.addEventListener('click', () => {
+    const fg = fgText.value;
+    const bg = bgText.value;
+    const checked = getCheckedStandards();
+    if (!/^#[0-9a-fA-F]{6}$/.test(fg) || !/^#[0-9a-fA-F]{6}$/.test(bg)) {
+      resultDiv.innerHTML = '<span class="contrast-error">Please enter valid hex colors.</span>';
+      return;
+    }
+    if (checked.length === 0) {
+      resultDiv.innerHTML = '<span class="contrast-error">Please select at least one WCAG standard.</span>';
+      return;
+    }
+    const ratio = contrastRatio(fg, bg);
+    const normal = wcagResult(ratio, 'normal');
+    const large = wcagResult(ratio, 'large');
+    // Helper for pass/fail container
+    function pfContainer(pass, fg, bg, label) {
+      const icon = pass
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false" pointer-events="none" class="_icon_lyt6s_1"><path fill="currentColor" d="M9 16.172 19.594 5.578 21 6.984l-12 12-5.578-5.578L4.828 12z"></path></svg>'
+        : '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false" pointer-events="none" class="_icon_lyt6s_1"><path fill="currentColor" d="M18.984 6.422 13.406 12l5.578 5.578-1.406 1.406L12 13.406l-5.578 5.578-1.406-1.406L10.594 12 5.016 6.422l1.406-1.406L12 10.594l5.578-5.578z"></path></svg>';
+      const text = pass ? 'PASS' : 'FAIL';
+      return `
+        <span class="pf-badge" style="--pf-bg:${fg};--pf-color:${bg};">
+          <span class="pf-icon">${icon}</span> ${text}
+        </span>
+      `;
+    }
+
+    resultDiv.innerHTML = `
+    <div class="contrast-results-container">
+      <strong>Contrast Ratio:</strong> ${ratio.toFixed(2)}:1<br>
+      <div class="contrast-results">
+        <div class="contrast-result">
+          <strong>AA</strong> (normal): ${pfContainer(normal.aa, fg, bg, 'AA normal')}<br>
+        </div>
+        <div class="contrast-result">
+          <strong>AA</strong> (large): ${pfContainer(large.aa, fg, bg, 'AA large')}<br>
+        </div>
+        <div class="contrast-result">
+          <strong>AAA</strong> (normal): ${pfContainer(normal.aaa, fg, bg, 'AAA normal')}<br>
+        </div>
+        <div class="contrast-result">
+          <strong>AAA</strong> (large): ${pfContainer(large.aaa, fg, bg, 'AAA large')}
+        </div>
+      </div>
+    </div>
+    `;
+
+  });
+}
 
 // Initialize event listeners
 function initEventListeners() {
@@ -132,6 +269,72 @@ function initEventListeners() {
     });
   });
   console.log("[Raging A11y] Event listeners initialized");
+
+  // Alt Text Toggle
+  if (toggleAltText) {
+    toggleAltText.addEventListener('change', () => {
+      if (toggleAltText.checked) {
+        chrome.devtools.inspectedWindow.eval('(' + showAllAltTextInPage.toString() + ')()');
+      } else {
+        chrome.devtools.inspectedWindow.eval('(' + hideAllAltTextInPage.toString() + ')()');
+      }
+    });
+  }
+
+  // Heading Order Toggle
+  if (toggleHeadingOrder) {
+    toggleHeadingOrder.addEventListener('change', () => {
+      if (toggleHeadingOrder.checked) {
+        chrome.devtools.inspectedWindow.eval('(' + showHeadingOrderInPage.toString() + ')()');
+      } else {
+        chrome.devtools.inspectedWindow.eval('(' + hideHeadingOrderInPage.toString() + ')()');
+      }
+    });
+  }
+
+  // Tab Order Toggle
+  if (toggleTabOrder) {
+    toggleTabOrder.addEventListener('change', () => {
+      if (toggleTabOrder.checked) {
+        chrome.devtools.inspectedWindow.eval('(' + showTabOrderInPage.toString() + ')()');
+      } else {
+        chrome.devtools.inspectedWindow.eval(`(${hideTabOrderInPage.toString()})();`, { useContentScriptContext: true });
+      }
+    });
+  }
+
+  // Focus Indicators Toggle
+  if (toggleFocusIndicators) {
+    toggleFocusIndicators.addEventListener('change', () => {
+      if (toggleFocusIndicators.checked) {
+        chrome.devtools.inspectedWindow.eval(`(${showFocusIndicatorsInPage.toString()})();`, { useContentScriptContext: true });
+      } else {
+        chrome.devtools.inspectedWindow.eval(`(${hideFocusIndicatorsInPage.toString()})();`, { useContentScriptContext: true });
+      }
+    });
+  }
+
+  // Generic Links Toggle
+  if (toggleGenericLinks) {
+    toggleGenericLinks.addEventListener('change', () => {
+      if (toggleGenericLinks.checked) {
+        chrome.devtools.inspectedWindow.eval(`(${findGenericLinksInPage.toString()})();`, { useContentScriptContext: true });
+      } else {
+        chrome.devtools.inspectedWindow.eval(`(${clearGenericLinkHighlightsInPage.toString()})();`, { useContentScriptContext: true });
+      }
+    });
+  }
+
+  // ARIA Label Issues Toggle
+  if (toggleAriaLabelIssues) {
+    toggleAriaLabelIssues.addEventListener('change', () => {
+      if (toggleAriaLabelIssues.checked) {
+        chrome.devtools.inspectedWindow.eval(`(${findAriaLabelIssuesInPage.toString()})();`, { useContentScriptContext: true });
+      } else {
+        chrome.devtools.inspectedWindow.eval(`(${clearAriaLabelIssuesHighlightsInPage.toString()})();`, { useContentScriptContext: true });
+      }
+    });
+  }
 }
 
 // Switch between tabs
@@ -802,6 +1005,15 @@ function showIssuesForSeverity(severity) {
     issueItem.appendChild(issueSeverity);
     issueItem.appendChild(issueHeader);
     issueItem.appendChild(issueDescription);
+    if (issue.helpUrl) {
+      const issueLink = document.createElement("a");
+      issueLink.className = "issue-link";
+      issueLink.href = issue.helpUrl;
+      issueLink.target = "_blank";
+      issueLink.rel = "noopener noreferrer";
+      issueLink.textContent = "View Issue";
+      issueItem.appendChild(issueLink);
+    }
 
     // Add click event to show elements
     issueItem.addEventListener("click", () => {
@@ -912,6 +1124,15 @@ function showIncompleteIssuesForSeverity(severity) {
     issueItem.appendChild(issueSeverity);
     issueItem.appendChild(issueHeader);
     issueItem.appendChild(issueDescription);
+    if (issue.helpUrl) {
+      const issueLink = document.createElement("a");
+      issueLink.className = "issue-link";
+      issueLink.href = issue.helpUrl;
+      issueLink.target = "_blank";
+      issueLink.rel = "noopener noreferrer";
+      issueLink.textContent = "View Issue ";
+      issueItem.appendChild(issueLink);
+    }
 
     // Add click event to show elements
     issueItem.addEventListener("click", () => {
@@ -1015,6 +1236,15 @@ function showPassesForSeverity(severity) {
     issueItem.appendChild(issueSeverity);
     issueItem.appendChild(issueHeader);
     issueItem.appendChild(issueDescription);
+    if (issue.helpUrl) {
+      const issueLink = document.createElement("a");
+      issueLink.className = "issue-link";
+      issueLink.href = issue.helpUrl;
+      issueLink.target = "_blank";
+      issueLink.rel = "noopener noreferrer";
+      issueLink.textContent = "View Issue";
+      issueItem.appendChild(issueLink);
+    }
 
     // Add click event to show elements
     issueItem.addEventListener("click", () => {
@@ -1145,8 +1375,7 @@ function highlightElement(target) {
       const previousHighlights = document.querySelectorAll('.raging-a11y-highlight');
       previousHighlights.forEach(el => {
         el.classList.remove('raging-a11y-highlight');
-        el.style.outline = '';
-        el.style.outlineOffset = '';
+        el.classList.remove('custom-highlight');
       });
       
       // Find and highlight the element
@@ -1158,8 +1387,7 @@ function highlightElement(target) {
         if (element) {
           console.log('[Raging A11y - Page Context] Element found and highlighted');
           element.classList.add('raging-a11y-highlight');
-          element.style.outline = '10px dashed #4285f4';
-          element.style.outlineOffset = '2px';
+          element.classList.add('custom-highlight');
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
           return true;
         } else {
@@ -1373,4 +1601,506 @@ function exportToCSV() {
   URL.revokeObjectURL(url);
   
   console.log("[Raging A11y] CSV export completed");
+}
+
+
+function showAllAltTextInPage() {
+  const images = document.querySelectorAll('img');
+  images.forEach(img => {
+    // Avoid duplicating overlays
+    if (img.parentElement.querySelector('.alt-text-overlay')) return;
+
+    const alt = img.getAttribute('alt');
+    const overlay = document.createElement('span');
+    overlay.className = 'alt-text-overlay';
+    overlay.textContent = alt ? `"${alt}"` : '⚠️ No alt text';
+
+    // Style overlay (move to CSS if possible)
+    overlay.style.position = 'absolute';
+    overlay.style.background = alt ? 'yellow' : '#df1c2f';
+    overlay.style.color = alt ? 'black' : 'white';
+    overlay.style.fontSize = '12px';
+    overlay.style.fontWeight = '600';
+    overlay.style.padding = '6px';
+    overlay.style.borderRadius = '4px';
+    overlay.style.zIndex = 3;
+    overlay.style.left = '0px';
+    overlay.style.top = '0px';
+    overlay.style.pointerEvents = 'none';
+
+    const parent = img.parentElement;
+
+    // Only set parent to relative if its position is static AND the image is not absolutely positioned
+    const parentStyle = getComputedStyle(parent);
+    const imgStyle = getComputedStyle(img);
+
+    if (
+      parentStyle.position === 'static' &&
+      imgStyle.position !== 'absolute' &&
+      imgStyle.position !== 'fixed'
+    ) {
+      parent.setAttribute('data-original-position', parent.style.position || '');
+      parent.style.position = 'relative';
+    }
+
+    parent.appendChild(overlay);
+  });
+}
+
+function hideAllAltTextInPage() {
+  document.querySelectorAll('.alt-text-overlay').forEach(overlay => {
+    const parent = overlay.parentElement;
+    if (parent && parent.hasAttribute('data-original-position')) {
+      parent.style.position = parent.getAttribute('data-original-position');
+      parent.removeAttribute('data-original-position');
+    }
+    overlay.remove();
+  });
+}
+
+function showHeadingOrderInPage() {
+  // Remove any existing overlays first
+  document.querySelectorAll('.heading-order-overlay').forEach(el => el.remove());
+
+  const headings = Array.from(document.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+  let prevLevel = 0;
+  let skipped = false;
+  let h1Count = 0;
+
+  // Check for missing H1
+  if (!headings.some(h => h.tagName === 'H1')) {
+    // Add a warning at the top of the page
+    const warning = document.createElement('div');
+    warning.className = 'heading-order-overlay';
+    warning.textContent = '⚠️ No <h1> found on this page!';
+    warning.style.position = 'fixed';
+    warning.style.top = '10px';
+    warning.style.left = '50%';
+    warning.style.transform = 'translateX(-50%)';
+    warning.style.background = '#FF4136';
+    warning.style.color = 'white';
+    warning.style.fontSize = '14px';
+    warning.style.padding = '6px 18px';
+    warning.style.borderRadius = '4px';
+    warning.style.zIndex = 10000;
+    warning.style.pointerEvents = 'none';
+    document.body.appendChild(warning);
+  }
+
+  // Count H1s
+  h1Count = headings.filter(h => h.tagName === 'H1').length;
+  const multipleH1 = h1Count > 1;
+
+  headings.forEach((heading, idx) => {
+    const level = Number(heading.tagName[1]);
+    let overlayColor = '#FF00FF '; // normal
+    let warningText = '';
+
+    // Highlight multiple H1s
+    if (heading.tagName === 'H1' && multipleH1) {
+      overlayColor = '#FF4136';
+      warningText = '⚠️ Multiple <h1>';
+    }
+
+    // Highlight skipped heading levels
+    if (prevLevel && (level > prevLevel + 1)) {
+      overlayColor = '#FF851B';
+      warningText = `⚠️ Skipped from H${prevLevel} to H${level}`;
+      skipped = true;
+    }
+    prevLevel = level;
+
+    // Create overlay
+    const overlay = document.createElement('span');
+    overlay.className = 'heading-order-overlay';
+    overlay.textContent = `${heading.tagName}${warningText ? ' ' + warningText : ''}`;
+    overlay.style.display = 'inline-block';
+    overlay.style.verticalAlign = 'middle';
+    overlay.style.background = overlayColor;
+    overlay.style.color = 'white';
+    overlay.style.fontSize = '11px';
+    overlay.style.marginRight = '6px';
+    overlay.style.padding = '2px 6px';
+    overlay.style.borderRadius = '3px';
+    overlay.style.pointerEvents = 'none';
+    overlay.style.fontWeight = 'bold';
+    overlay.style.lineHeight = '1.2';
+    overlay.style.boxShadow = '0 1px 4px rgba(0,0,0,0.08)';
+    overlay.style.position = 'relative';
+    overlay.style.top = '-2px';
+
+    // Insert overlay as the first child of the heading
+    heading.insertBefore(overlay, heading.firstChild);
+  });
+}
+
+function hideHeadingOrderInPage() {
+  document.querySelectorAll('.heading-order-overlay').forEach(el => el.remove());
+}
+
+function showTabOrderInPage() {
+  (function() {
+    function runTabOrderOverlay() {
+      document.querySelectorAll('.tab-order-overlay').forEach(el => el.remove());
+      const tabbables = window.tabbable && typeof window.tabbable.tabbable === 'function'
+        ? window.tabbable.tabbable(document.body)
+        : []; 
+      tabbables.forEach((el, idx) => {
+        if (el.querySelector && el.querySelector('.tab-order-overlay')) return;
+        const overlay = document.createElement('span');
+        overlay.className = 'tab-order-overlay';
+        overlay.textContent = idx + 1;
+        overlay.style.position = 'absolute';
+        overlay.style.background = '#FF00FF';
+        overlay.style.color = 'white';
+        overlay.style.fontSize = '13px';
+        overlay.style.fontWeight = '600';
+        overlay.style.borderRadius = '50%';
+        overlay.style.width = '22px';
+        overlay.style.height = '22px';
+        overlay.style.display = 'flex';
+        overlay.style.alignItems = 'center';
+        overlay.style.justifyContent = 'center';
+        overlay.style.zIndex = 10000;
+        overlay.style.pointerEvents = 'none';
+        overlay.style.boxShadow = '0 1px 4px rgba(0,0,0,0.15)';
+        overlay.style.left = '0px';
+        overlay.style.top = '0px';
+        if (!el.hasAttribute('data-original-position')) {
+          el.setAttribute('data-original-position', el.style.position || '');
+        }
+        if (getComputedStyle(el).position === 'static') {
+          el.style.position = 'relative';
+        }
+        el.appendChild(overlay);
+      });
+      console.log('[A11y Panel] Tabbable elements:', tabbables.map(el => ({
+        tag: el.tagName,
+        type: el.type,
+        id: el.id,
+        class: el.className
+      })));
+      console.log('[A11y Panel] Tab order overlays: found', tabbables.length, 'elements');
+    }
+
+    if (!window.tabbable) {
+      // Inject tabbable from CDN
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/tabbable@6.2.0/dist/index.umd.min.js';
+      script.onload = runTabOrderOverlay;
+      document.head.appendChild(script);
+    } else {
+      runTabOrderOverlay();
+    }
+  })();
+}
+
+function hideTabOrderInPage() {
+  document.querySelectorAll('.tab-order-overlay').forEach(overlay => {
+    const parent = overlay.parentElement;
+    if (parent && parent.hasAttribute('data-original-position')) {
+      parent.style.position = parent.getAttribute('data-original-position');
+      parent.removeAttribute('data-original-position');
+    }
+    overlay.remove();
+  });
+}
+
+function showFocusIndicatorsInPage() {
+  const FOCUS_STYLE_ID = 'cascade-focus-indicator-styles';
+  const FOCUS_CLASS_NAME = 'cascade-focus-highlight';
+
+  // Remove any existing styles first
+  const existingStyleElement = document.getElementById(FOCUS_STYLE_ID);
+  if (existingStyleElement) {
+    existingStyleElement.remove();
+  }
+  document.querySelectorAll('.' + FOCUS_CLASS_NAME).forEach(el => el.classList.remove(FOCUS_CLASS_NAME));
+
+  // Define the style
+  const style = document.createElement('style');
+  style.id = FOCUS_STYLE_ID;
+  style.textContent = `
+    .${FOCUS_CLASS_NAME}:not(:focus-visible) {
+      outline: 3px dashed #FF00FF !important;
+      outline-offset: 2px !important;
+      box-shadow: 0 0 0 3px #FF00FF, 0 0 0 5px white !important; /* Ensure visibility on dark/light backgrounds */
+    }
+  `;
+  document.head.appendChild(style);
+
+  // Find all focusable elements
+  const focusableSelectors = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled]):not([type="hidden"])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])',
+    '[contenteditable="true"]:not([contenteditable="false"])'
+  ];
+
+  const elements = document.querySelectorAll(focusableSelectors.join(', '));
+  elements.forEach(el => {
+    // Check if the element is actually visible and not inert
+    if (el.offsetWidth > 0 || el.offsetHeight > 0 || el.getClientRects().length > 0) {
+      const computedStyle = window.getComputedStyle(el);
+      if (computedStyle.visibility !== 'hidden' && computedStyle.display !== 'none') {
+         // Check for inert attribute on self or ancestors
+        let inert = false;
+        let current = el;
+        while (current) {
+            if (current.hasAttribute('inert')) {
+                inert = true;
+                break;
+            }
+            current = current.parentElement;
+        }
+        if (!inert) {
+            el.classList.add(FOCUS_CLASS_NAME);
+        }
+      }
+    }
+  });
+  console.log('[A11y Panel] Applied focus indicators to', document.querySelectorAll('.' + FOCUS_CLASS_NAME).length, 'elements.');
+}
+
+function hideFocusIndicatorsInPage() {
+  const FOCUS_STYLE_ID = 'cascade-focus-indicator-styles';
+  const FOCUS_CLASS_NAME = 'cascade-focus-highlight';
+
+  const styleElement = document.getElementById(FOCUS_STYLE_ID);
+  if (styleElement) {
+    styleElement.remove();
+  }
+  document.querySelectorAll('.' + FOCUS_CLASS_NAME).forEach(el => {
+    el.classList.remove(FOCUS_CLASS_NAME);
+  });
+  console.log('[A11y Panel] Removed focus indicators.');
+}
+
+function findGenericLinksInPage() {
+  const GENERIC_LINK_STYLE_ID = 'cascade-generic-link-styles';
+  const GENERIC_LINK_CLASS_NAME = 'cascade-generic-link-highlight';
+
+  // Remove any existing highlights and styles first
+  document.querySelectorAll('.' + GENERIC_LINK_CLASS_NAME).forEach(el => {
+    el.classList.remove(GENERIC_LINK_CLASS_NAME);
+    if (el.dataset.originalTitle) {
+      el.title = el.dataset.originalTitle;
+      delete el.dataset.originalTitle;
+    } else {
+      el.removeAttribute('title');
+    }
+    const tooltip = el.querySelector('.cascade-generic-link-tooltip');
+    if (tooltip) tooltip.remove();
+  });
+  const existingStyleElement = document.getElementById(GENERIC_LINK_STYLE_ID);
+  if (existingStyleElement) {
+    existingStyleElement.remove();
+  }
+
+  // Define the style for highlights and tooltips
+  const style = document.createElement('style');
+  style.id = GENERIC_LINK_STYLE_ID;
+  style.textContent = `
+    .${GENERIC_LINK_CLASS_NAME} {
+      outline: 2px dashed orange !important;
+      outline-offset: 2px !important;
+      position: relative; /* For tooltip positioning */
+    }
+    .${GENERIC_LINK_CLASS_NAME} .cascade-generic-link-tooltip {
+      visibility: hidden;
+      width: max-content;
+      background-color: black;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px 8px;
+      position: absolute;
+      z-index: 10001; /* Higher than other overlays */
+      bottom: 125%; /* Position above the element */
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+    .${GENERIC_LINK_CLASS_NAME}:hover .cascade-generic-link-tooltip {
+      visibility: visible;
+      opacity: 1;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const genericPhrases = [
+    'click here', 'read more', 'learn more', 'more info', 'more', 'here', 'info', 'link', 'this link', 'this page', 'this website', 'go to', 'get more', 'find out more'
+  ];
+
+  const links = document.querySelectorAll('a');
+  let count = 0;
+  links.forEach(link => {
+    const linkText = (link.textContent || '').trim().toLowerCase();
+    const ariaLabel = (link.getAttribute('aria-label') || '').trim().toLowerCase();
+    const effectiveText = ariaLabel || linkText; // Prefer aria-label if it exists
+
+    if (genericPhrases.includes(effectiveText)) {
+      link.classList.add(GENERIC_LINK_CLASS_NAME);
+      
+      // Add a tooltip
+      const tooltip = document.createElement('span');
+      tooltip.className = 'cascade-generic-link-tooltip';
+      tooltip.textContent = 'Generic link text: "' + (link.textContent || '').trim() + '"';
+      link.appendChild(tooltip);
+      count++;
+    }
+  });
+
+  console.log(`[A11y Panel] Found ${count} generic links.`);
+}
+
+function clearGenericLinkHighlightsInPage() {
+  const GENERIC_LINK_STYLE_ID = 'cascade-generic-link-styles';
+  const GENERIC_LINK_CLASS_NAME = 'cascade-generic-link-highlight';
+
+  document.querySelectorAll('.' + GENERIC_LINK_CLASS_NAME).forEach(el => {
+    el.classList.remove(GENERIC_LINK_CLASS_NAME);
+    const tooltip = el.querySelector('.cascade-generic-link-tooltip');
+    if (tooltip) tooltip.remove();
+  });
+
+  const styleElement = document.getElementById(GENERIC_LINK_STYLE_ID);
+  if (styleElement) {
+    styleElement.remove();
+  }
+  console.log('[A11y Panel] Cleared generic link highlights.');
+}
+
+function findAriaLabelIssuesInPage() {
+  const ARIA_ISSUE_STYLE_ID = 'cascade-aria-issue-styles';
+  const ARIA_ISSUE_CLASS_NAME = 'cascade-aria-issue-highlight';
+  const ARIA_TOOLTIP_CLASS_NAME = 'cascade-aria-issue-tooltip';
+
+  // Clear previous highlights
+  document.querySelectorAll('.' + ARIA_ISSUE_CLASS_NAME).forEach(el => {
+    el.classList.remove(ARIA_ISSUE_CLASS_NAME);
+    const tooltip = el.querySelector('.' + ARIA_TOOLTIP_CLASS_NAME);
+    if (tooltip) tooltip.remove();
+  });
+  const existingStyleElement = document.getElementById(ARIA_ISSUE_STYLE_ID);
+  if (existingStyleElement) {
+    existingStyleElement.remove();
+  }
+
+  // Define styles
+  const style = document.createElement('style');
+  style.id = ARIA_ISSUE_STYLE_ID;
+  style.textContent = `
+    .${ARIA_ISSUE_CLASS_NAME} {
+      outline: 3px dashed #FF00FF !important;
+      outline-offset: 2px !important;
+      position: relative; 
+    }
+    .${ARIA_TOOLTIP_CLASS_NAME} {
+      visibility: hidden;
+      width: max-content;
+      max-width: 300px;
+      background-color: black;
+      color: #fff !important;
+      text-align: left;
+      border-radius: 6px;
+      padding: 5px 8px;
+      position: absolute;
+      z-index: 10002; /* Higher than generic link tooltip */
+      bottom: 125%; 
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 12px !important; 
+      line-height: 1.4;
+    }
+    .${ARIA_ISSUE_CLASS_NAME}:hover .${ARIA_TOOLTIP_CLASS_NAME} {
+      visibility: visible;
+      opacity: 1;
+    }
+  `;
+  document.head.appendChild(style);
+
+  const elementsWithAriaLabel = document.querySelectorAll('[aria-label]');
+  let issuesFound = 0;
+
+  // Roles that inherently support naming from author via aria-label
+  // (This list is not exhaustive but covers common interactive roles)
+  const interactiveRoles = [
+    'button', 'checkbox', 'link', 'menuitem', 'menuitemcheckbox', 'menuitemradio',
+    'option', 'radio', 'searchbox', 'slider', 'spinbutton', 'switch', 'tab', 'textbox', 'tooltip', 'treeitem'
+    // Landmark roles also support labels, but usually via aria-labelledby for regions
+  ];
+
+  // Elements that are generally static content unless they have an interactive role
+  const staticElementTags = ['p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'dt', 'dd', 'th', 'td', 'label', 'legend', 'output'];
+
+  elementsWithAriaLabel.forEach(el => {
+    const ariaLabelValue = (el.getAttribute('aria-label') || '').trim();
+    const textContentValue = (el.textContent || '').trim();
+    const role = (el.getAttribute('role') || '').toLowerCase();
+    const tagName = el.tagName.toLowerCase();
+    let issueMessage = '';
+
+    // 1. Check for redundant aria-label
+    if (ariaLabelValue.toLowerCase() === textContentValue.toLowerCase() && textContentValue !== '') {
+      issueMessage = 'Redundant aria-label: The aria-label content is the same as the visible text content.';
+    }
+
+    // 2. Check for aria-label on static content without an appropriate interactive role
+    if (staticElementTags.includes(tagName) && !role && ariaLabelValue !== '') {
+        // Further check: if it's an img or has a role that supports naming, it might be okay.
+        // This check is simplified; a more robust check would involve deeper role semantics.
+        if (!interactiveRoles.includes(role)) { // if no role, or a role not in our 'interactive' list
+             const currentMsg = issueMessage ? issueMessage + '\n' : '';
+             issueMessage = currentMsg + 'Potentially misused aria-label: aria-label used on a static element (' + tagName + ') without an interactive ARIA role.';
+        }
+    } else if (role && !interactiveRoles.includes(role) && staticElementTags.includes(tagName) && ariaLabelValue !== '') {
+        // Has a role, but that role isn't one we typically expect to be named by aria-label directly on a static tag
+        const currentMsg = issueMessage ? issueMessage + '\n' : '';
+        issueMessage = currentMsg + 'Potentially misused aria-label: aria-label used on element (' + tagName + ') with role "' + role + '" which may not be appropriate for direct naming if content is present.';
+    }
+
+
+    if (issueMessage) {
+      el.classList.add(ARIA_ISSUE_CLASS_NAME);
+      const tooltip = document.createElement('span');
+      tooltip.className = ARIA_TOOLTIP_CLASS_NAME;
+      tooltip.innerText = issueMessage; // Use innerText to preserve newlines in tooltip
+      el.appendChild(tooltip);
+      issuesFound++;
+    }
+  });
+
+  console.log(`[A11y Panel] Found ${issuesFound} potential ARIA label issues.`);
+}
+
+function clearAriaLabelIssuesHighlightsInPage() {
+  const ARIA_ISSUE_STYLE_ID = 'cascade-aria-issue-styles';
+  const ARIA_ISSUE_CLASS_NAME = 'cascade-aria-issue-highlight';
+  const ARIA_TOOLTIP_CLASS_NAME = 'cascade-aria-issue-tooltip';
+
+  // First, remove the highlight class from all relevant elements
+  document.querySelectorAll('.' + ARIA_ISSUE_CLASS_NAME).forEach(el => {
+    el.classList.remove(ARIA_ISSUE_CLASS_NAME);
+  });
+
+  // Then, find and remove all tooltip span elements directly
+  document.querySelectorAll('.' + ARIA_TOOLTIP_CLASS_NAME).forEach(tooltipEl => {
+    tooltipEl.remove();
+  });
+
+  // Finally, remove the dedicated style tag
+  const styleElement = document.getElementById(ARIA_ISSUE_STYLE_ID);
+  if (styleElement) {
+    styleElement.remove();
+  }
+  console.log('[A11y Panel] Cleared ARIA label issue highlights.');
 }

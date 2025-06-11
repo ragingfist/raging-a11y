@@ -3,6 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <title>Raging A11y</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100..900;1,100..900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="panel.css" />
   </head>
   <body>
@@ -70,6 +73,7 @@
           </button>
           <button class="tab-button" data-tab="incomplete">Incomplete</button>
           <button class="tab-button" data-tab="passes">Passes</button>
+          <button class="tab-button" data-tab="tools">Tools</button>
         </div>
       </div>
 
@@ -227,6 +231,109 @@
           <div class="elements-panel">
             <h2>Elements</h2>
             <div id="passes-elements-list" class="elements-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content tools" id="tools-tab">
+        <div class="tools-container">
+          <div>
+            <div class="toggle-group">
+              <div class="toggle-label">Show Alt Text</div>
+              <label class="switch">
+                <input type="checkbox" id="toggle-alt-text">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <div class="toggle-group">
+              <div class="toggle-label">Show Heading Order</div>
+              <label class="switch">
+                <input type="checkbox" id="toggle-heading-order">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <div class="toggle-group">
+              <div class="toggle-label">Show Tab Order</div>
+              <label class="switch">
+                <input type="checkbox" id="toggle-tab-order">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <div class="toggle-group">
+              <div class="toggle-label">Show Focus Indicators</div>
+              <label class="switch">
+                <input type="checkbox" id="toggle-focus-indicators">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <div class="toggle-group">
+              <div class="toggle-label">Show Generic Link Highlights</div>
+              <label class="switch">
+                <input type="checkbox" id="toggle-generic-links">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <div class="toggle-group">
+              <div class="toggle-label">Show ARIA Label Issues</div>
+              <label class="switch">
+                <input type="checkbox" id="toggle-aria-label-issues">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <div id="contrast-checker" class="contrast-live-preview contrast-checker-outer">
+            <h4 class="contrast-header">WCAG 2.2 Contrast Checker</h4>
+            <div class="contrast-checker-row">
+            <label>
+              <div
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                align-items: center;
+                width: auto;
+              "
+            >
+              Foreground Color:
+              <input type="color" id="contrast-fg" value="#222222" class="contrast-color-input">
+              <input type="text" class="contrast-input contrast-input-vertical" id="contrast-fg-text" value="#222222" size="8" maxlength="7">
+            </div>
+            </label>
+            <br>
+            <label>
+              <div
+              style="
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                align-items: center;
+                width: auto;
+              "
+            >
+              Background Color:
+              <input type="color" id="contrast-bg" value="#ffffff" class="contrast-color-input">
+              <input type="text" class="contrast-input contrast-input-vertical" id="contrast-bg-text" value="#ffffff" size="8" maxlength="7">
+            </div>
+            </label>
+            </div>
+            <br>
+            <button id="contrast-check-btn" class="contrast-check-btn">Check Contrast</button>
+            <div id="contrast-result" class="contrast-result-msg"></div>
           </div>
         </div>
       </div>
