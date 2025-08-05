@@ -397,11 +397,6 @@ button:hover {
   line-height: 1;
 }
 
-.custom-highlight {
-  outline: 10px dashed #4285f4 !important;
-  outline-offset: 2px !important;
-}
-
 #contrast-checker {
   background: var(--contrast-bg, #fff) !important;
   color: var(--contrast-fg, #222) !important;

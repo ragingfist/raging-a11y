@@ -1375,7 +1375,8 @@ function highlightElement(target) {
       const previousHighlights = document.querySelectorAll('.raging-a11y-highlight');
       previousHighlights.forEach(el => {
         el.classList.remove('raging-a11y-highlight');
-        el.classList.remove('custom-highlight');
+        el.style.outline = '';
+        el.style.outlineOffset = '';
       });
       
       // Find and highlight the element
@@ -1387,7 +1388,8 @@ function highlightElement(target) {
         if (element) {
           console.log('[Raging A11y - Page Context] Element found and highlighted');
           element.classList.add('raging-a11y-highlight');
-          element.classList.add('custom-highlight');
+          element.style.outline = '10px dashed #4285f4';
+          element.style.outlineOffset = '2px';
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
           return true;
         } else {
